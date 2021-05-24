@@ -1,0 +1,32 @@
+{\rtf1\ansi\ansicpg932\cocoartf2578
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
+{\colortbl;\red255\green255\blue255;}
+{\*\expandedcolortbl;;}
+\paperw11900\paperh16840\margl1440\margr1440\vieww17360\viewh9420\viewkind0
+\pard\tx566\tx1133\tx1700\tx2267\tx2834\tx3401\tx3968\tx4535\tx5102\tx5669\tx6236\tx6803\pardirnatural\partightenfactor0
+
+\f0\fs24 \cf0 source kdd_mini2/bin/activate\
+cd /groups/gcb50362/KDD_mini2\
+module load gcc/9.3.0\
+module load python/3.8/3.8.7\
+module load cuda/10.1/10.1.243\
+module load cudnn/7.6/7.6.5\
+python\
+\
+from pykeen.datasets import OpenBioLink\
+from pykeen.hpo import hpo_pipeline\
+hpo_pipeline_result = hpo_pipeline(\
+    n_trials=10,\
+    dataset=OpenBioLink,\
+    model='ComplEx',\
+    loss='marginranking',\
+    training_loop='lcwa',\
+    negative_sampler='basic',\
+    evaluator_kwargs=dict(filtered=True),\
+    stopper='early',\
+    stopper_kwargs=dict(frequency=5, patience=2, relative_delta=0.002),\
+)\
+pipeline_result.save_to_directory('OpenBioLink_ComplEx')\
+\
+\
+}

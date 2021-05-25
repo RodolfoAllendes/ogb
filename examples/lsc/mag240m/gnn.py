@@ -166,7 +166,9 @@ class GNN(LightningModule):
             Linear(hidden_channels, out_channels),
         )
 
-        self.acc = Accuracy()
+        self.train_acc = Accuracy()
+        self.val_acc = Accuracy()
+        self.test_acc = Accuracy()
 
     def forward(self, x: Tensor, adjs_t: List[SparseTensor]) -> Tensor:
         for i, adj_t in enumerate(adjs_t):
@@ -184,24 +186,22 @@ class GNN(LightningModule):
     def training_step(self, batch, batch_idx: int):
         y_hat = self(batch.x, batch.adjs_t)
         train_loss = F.cross_entropy(y_hat, batch.y)
-        train_acc = self.acc(y_hat.softmax(dim=-1), batch.y)
-        self.log('train_acc', train_acc, prog_bar=True, on_step=False,
+        self.train_acc(y_hat.softmax(dim=-1), batch.y)
+        self.log('train_acc', self.train_acc, prog_bar=True, on_step=False,
                  on_epoch=True)
         return train_loss
 
     def validation_step(self, batch, batch_idx: int):
         y_hat = self(batch.x, batch.adjs_t)
-        val_acc = self.acc(y_hat.softmax(dim=-1), batch.y)
-        self.log('val_acc', val_acc, on_step=False, on_epoch=True,
+        self.val_acc(y_hat.softmax(dim=-1), batch.y)
+        self.log('val_acc', self.val_acc, on_step=False, on_epoch=True,
                  prog_bar=True, sync_dist=True)
-        return val_acc
 
     def test_step(self, batch, batch_idx: int):
         y_hat = self(batch.x, batch.adjs_t)
-        test_acc = self.acc(y_hat.softmax(dim=-1), batch.y)
-        self.log('test_acc', test_acc, on_step=False, on_epoch=True,
+        self.test_acc(y_hat.softmax(dim=-1), batch.y)
+        self.log('test_acc', self.test_acc, on_step=False, on_epoch=True,
                  prog_bar=True, sync_dist=True)
-        return test_acc
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=0.001)
@@ -233,7 +233,7 @@ if __name__ == '__main__':
                     datamodule.num_classes, args.hidden_channels,
                     num_layers=len(args.sizes), dropout=args.dropout)
         print(f'#Params {sum([p.numel() for p in model.parameters()])}')
-        checkpoint_callback = ModelCheckpoint(monitor='val_acc', save_top_k=1)
+        checkpoint_callback = ModelCheckpoint(monitor='val_acc', mode = 'max', save_top_k=1)
         trainer = Trainer(gpus=args.device, max_epochs=args.epochs,
                           callbacks=[checkpoint_callback],
                           default_root_dir=f'logs/{args.model}')
@@ -259,9 +259,11 @@ if __name__ == '__main__':
         loader = datamodule.hidden_test_dataloader()
 
         model.eval()
+        device = f'cuda:{args.device}' if torch.cuda.is_available() else 'cpu'
+        model.to(device)
         y_preds = []
         for batch in tqdm(loader):
-            batch = batch.to(int(args.device))
+            batch = batch.to(device)
             with torch.no_grad():
                 out = model(batch.x, batch.adjs_t).argmax(dim=-1).cpu()
                 y_preds.append(out)
